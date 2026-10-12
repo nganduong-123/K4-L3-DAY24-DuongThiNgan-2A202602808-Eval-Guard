@@ -98,14 +98,31 @@ def run_query(q: str, search, reranker, top_k: int, client=None) -> tuple[str, l
             ctx = "\n\n".join(contexts)
             resp = client.chat.completions.create(
                 model=GENERATION_MODEL,
+                max_tokens=int(os.getenv("GENERATION_MAX_TOKENS", "256")),
                 messages=[
                     {"role": "system", "content": "Trả lời CHỈ dựa trên context. Nếu không có → nói 'Không tìm thấy.'"},
                     {"role": "user",   "content": f"Context:\n{ctx}\n\nCâu hỏi: {q}"},
                 ],
             )
+            answer = (resp.choices[0].message.content or "").strip()
+            if not answer:
+                # Reasoning models can spend a small completion allowance entirely
+                # on internal reasoning. Retry once and never label an empty answer
+                # as a successful LLM generation.
+                resp = client.chat.completions.create(
+                    model=GENERATION_MODEL,
+                    max_tokens=max(int(os.getenv("GENERATION_MAX_TOKENS", "256")), 1024),
+                    messages=[
+                        {"role": "system", "content": "Answer only from the supplied context. If absent, say: Khong tim thay."},
+                        {"role": "user", "content": f"Context:\n{ctx}\n\nQuestion: {q}"},
+                    ],
+                )
+                answer = (resp.choices[0].message.content or "").strip()
+            if not answer:
+                raise ValueError("LLM returned an empty answer after retry")
             reported_model = getattr(resp, "model", None)
             used_model = reported_model if isinstance(reported_model, str) and reported_model.strip() else GENERATION_MODEL
-            return resp.choices[0].message.content, contexts, "llm", used_model
+            return answer, contexts, "llm", used_model
         except Exception as e:
             print(f"  ⚠️  LLM generation failed: {e}")
 

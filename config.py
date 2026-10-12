@@ -45,8 +45,12 @@ GUARDRAILS_CONFIG_DIR = os.path.join(ROOT_DIR, "guardrails")
 PAIR_QUESTION_IDS = (1, 5, 12, 21, 41)
 
 # --- LLM Judge ---
-GENERATION_MODEL = "gpt-4o-mini"
-JUDGE_MODEL = "gpt-4o-mini"
+# Keep every model configurable so the same evidence pipeline can run against any
+# OpenAI-compatible provider without editing source files or committing secrets.
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+GENERATION_MODEL = os.getenv("GENERATION_MODEL", OPENAI_MODEL)
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", OPENAI_MODEL)
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", os.getenv("OPENAI_API_BASE", ""))
 
 # --- Guardrail latency budget ---
 LATENCY_BUDGET_P95_MS = 500  # Full guard target; Task 12 currently measures input guards only.

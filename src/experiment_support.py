@@ -5,6 +5,7 @@ import hashlib
 import inspect
 import json
 import math
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -112,6 +113,7 @@ def judge_binary(question, answer, reference, *, client=None):
         client = OpenAI()
     response = client.chat.completions.create(
         model=JUDGE_MODEL, temperature=0,
+        max_tokens=int(os.getenv("JUDGE_MAX_TOKENS", "384")),
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": BINARY_SYSTEM_PROMPT},

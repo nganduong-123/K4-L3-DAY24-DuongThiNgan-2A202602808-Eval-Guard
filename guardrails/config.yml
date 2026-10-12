@@ -1,9 +1,13 @@
 colang_version: "1.0"
 
+core:
+  embedding_search_provider:
+    name: local_lexical
+
 models:
   - type: main
     engine: openai
-    model: gpt-4o-mini
+    model: openai/gpt-oss-20b
 
 instructions:
   - type: general
