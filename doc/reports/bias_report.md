@@ -1,40 +1,44 @@
-# Đánh giá LLM Judge Phase B
+# Báo cáo LLM-as-a-Judge và bias
 
-Nhóm: {{Tên nhóm}}
+- **Hình thức:** cá nhân — Dương Thị Ngân, 2A202602808
+- **Nguồn:** `artifacts/judge_results.json`
+- **Thời điểm chạy:** 2026-10-12T16:18:59Z
+- **Mô hình sinh câu trả lời:** `openai/gpt-oss-20b`
+- **Mô hình judge:** `openai/gpt-oss-120b`
 
-Người phụ trách: {{Họ tên và MSSV}}
+## Pairwise, swap-and-average
 
-Nguồn: `artifacts/judge_results.json`; run timestamp: {{created_at}}.
-Models generation/judge: {{metadata.models.generation và metadata.models.judge}}.
+Năm cặp được chấm hai lần. Ở lượt hai, vị trí A/B được đảo và kết quả dưới đây đã được quy đổi lại về đáp án gốc.
 
-## Năm cặp A/B và hai lượt
+| Question ID | Độ dài A | Độ dài B | Winner pass 1 | Winner pass 2 | Kết quả cuối | Nhất quán vị trí |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| 1 | 60 | 75 | B | B | B | Có |
+| 5 | 15 | 43 | tie | tie | tie | Có |
+| 12 | 138 | 68 | A | tie | tie | Không |
+| 21 | 268 | 104 | B | B | B | Có |
+| 41 | 103 | 48 | A | A | A | Có |
 
-Nguồn cố định: A từ artifacts/answers_50q.json:answer; B từ
-fixtures/human_labels_10q.json:model_answer; reference từ fixtures/test_set_50q.json:ground_truth.
-Ids: 1, 5, 12, 21, 41. Không đổi nguồn sau khi xem kết quả judge.
+Position-bias count là **1/5**, tương đương **0.20**. Trường hợp không nhất quán là câu 12; cơ chế swap-and-average đưa trường hợp này về `tie`, nhờ vậy không giữ một lựa chọn phụ thuộc vị trí. Trong ba cặp có winner dứt khoát, đáp án dài hơn thắng hai lần, nên verbosity win rate là **2/3 = 0.667**. Mẫu chỉ có năm cặp nên đây là tín hiệu cần theo dõi, chưa đủ để kết luận judge luôn thiên vị câu dài.
 
-{{Điền 5 rows: id, candidate A/B, winner_pass1, winner_pass2 đã quy về A/B gốc,
-final_winner, position_consistent, reasoning và scores của hai lượt.}}
+## Hiệu chuẩn nhị phân với nhãn người
 
-Position bias count/rate: {{count và rate}}.
-Verbosity win rate: {{giá trị}}; decisive cases: {{số lượng}}.
+Judge chỉ nhận `question`, `model_answer` và `reference`; nhãn và ghi chú của người không được đưa vào prompt.
 
-{{Giải thích các case không nhất quán và các winner dài hơn. Phân biệt dấu hiệu
-thống kê với kết luận nguyên nhân bias dựa trên nội dung.}}
+| Question ID | Nhãn judge | Nhãn người | Khớp |
+| --- | ---: | ---: | --- |
+| 1 | 1 | 1 | Có |
+| 5 | 0 | 0 | Có |
+| 12 | 1 | 1 | Có |
+| 21 | 1 | 1 | Có |
+| 23 | 1 | 1 | Có |
+| 29 | 0 | 0 | Có |
+| 33 | 1 | 1 | Có |
+| 41 | 0 | 0 | Có |
+| 46 | 1 | 1 | Có |
+| 50 | 0 | 0 | Có |
 
-## Calibration đúng model_answer
+Observed agreement là **10/10 = 1.00**. Cả hai bộ nhãn có 6 nhãn dương và 4 nhãn âm, nên chance agreement là `0.6 × 0.6 + 0.4 × 0.4 = 0.52`. Cohen’s κ là `(1.00 - 0.52) / (1 - 0.52) = 1.00`, thuộc mức almost perfect. Kết quả tốt nhưng tập hiệu chuẩn chỉ có 10 câu; khi triển khai nên mở rộng nhãn người, theo dõi theo từng loại lỗi và định kỳ đánh giá lại sau khi đổi prompt/model.
 
-Helper đánh giá đúng question/model_answer đang có trong fixtures/human_labels_10q.json;
-không lấy answer mới của pipeline. Prompt chỉ nhận question, answer, reference.
-Không gửi human_label, human_note hoặc phân bố nhãn human vào prompt.
+## Kết luận và biện pháp giảm bias
 
-{{Điền 10 rows theo đúng thứ tự JSON: question_id, model_answer gốc, nhãn judge
-0/1, reasoning, human_label và agree. Nhãn human chỉ dùng sau judge để đối chiếu.}}
-
-Cohen’s κ: {{giá trị}}.
-Observed/chance agreement và diễn giải: {{phép tính và nhận xét}}.
-
-## Giới hạn và cách dùng judge
-
-{{Nêu model/prompt, số cặp và số nhãn nhỏ; diễn giải nếu κ chưa đạt >0.6.
-Nêu case lệch với human, cách kiểm chứng, và việc không xem judge là đáp án tuyệt đối.}}
+Luôn giữ hai lượt swap-and-average, lưu cả reasoning và điểm của từng lượt, đồng thời coi kết quả `tie` là cần review thay vì ép winner. Với verbosity bias, prompt phải tách accuracy, completeness và conciseness; báo cáo nên theo dõi riêng tỷ lệ winner dài hơn trên tập lớn hơn. Cohen’s κ cần được đo lại trên mẫu ẩn, có nhiều người gán nhãn, thay vì dùng 10 câu hiện tại như bảo đảm chất lượng tuyệt đối.

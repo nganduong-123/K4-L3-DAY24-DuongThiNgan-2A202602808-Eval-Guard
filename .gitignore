@@ -9,5 +9,6 @@ venv/
 .pytest_cache/
 .env.*
 !.env.example
+artifacts/ragas_checkpoint.json
 # artifacts/*.json là bằng chứng bắt buộc của bài nộp.
 # Chỉ commit sau khi kiểm tra không có API key hoặc dữ liệu cá nhân thật.

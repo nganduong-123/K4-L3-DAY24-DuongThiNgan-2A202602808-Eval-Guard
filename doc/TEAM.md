@@ -1,50 +1,43 @@
-# Nhóm thực hiện K4 Track 3B
+# Nhóm thực hiện K4 Track 3B — Day 24
 
-Tên nhóm: {{Tên nhóm}}
-
-Repo chung: {{Link repo}}
-
-Trưởng nhóm/người nộp: {{Họ tên và MSSV}}
-
-Ngày lab/deadline áp dụng: {{Ngày giờ theo thông báo lớp}} — Asia/Ho_Chi_Minh (UTC+07:00)
-
-Commit dùng để chấm: {{Commit SHA}}
-
-Mỗi nhóm nộp một repo. Điền đủ thành viên và một mục INDIVIDUAL cho từng người.
-Thêm/xóa rows để khớp nhóm thật; mẫu ba rows không ép nhóm phải có ba người.
+- **Hình thức:** Dự án cá nhân
+- **Thành viên duy nhất:** Dương Thị Ngân
+- **Mã sinh viên:** 2A202602808
+- **Repository:** https://github.com/nganduong-123/K4-L3-DAY24-DuongThiNgan-2A202602808-Eval-Guard
+- **Người thực hiện và nộp bài:** Dương Thị Ngân — 2A202602808
+- **Hạn nộp:** 11:59 ngày 13/10/2026 (Asia/Ho_Chi_Minh, UTC+07:00)
+- **Commit nộp ban đầu:** `c1aa4f0`
+- **Phiên bản dùng để chấm:** commit mới nhất trên nhánh `main`
 
 ## Thành viên và phân công
 
-| STT | Họ và tên | MSSV | Vai trò / công việc thật | Bằng chứng |
-|---|---|---|---|---|
-| 1 | {{Họ tên}} | {{MSSV}} | {{Phase/file/hàm}} | {{Commit/PR/report}} |
-| 2 | {{Họ tên}} | {{MSSV}} | {{Phase/file/hàm}} | {{Commit/PR/report}} |
-| 3 | {{Họ tên}} | {{MSSV}} | {{Phase/file/hàm}} | {{Commit/PR/report}} |
+| STT | Họ và tên | Mã sinh viên | Phân công |
+| --- | --- | --- | --- |
+| 1 | Dương Thị Ngân | 2A202602808 | Thực hiện toàn bộ Phase A (RAGAS), Phase B (LLM-as-a-Judge), Phase C (Guardrails), kiểm thử, phân tích kết quả, viết báo cáo và nộp bài |
 
-Người tích hợp/chạy batch/nộp link: {{Họ tên, công việc và bằng chứng}}.
+Người tích hợp mã nguồn, chạy batch đánh giá, kiểm tra artifact và nộp liên kết VLearn: **Dương Thị Ngân — 2A202602808**.
 
-## Môi trường và chuẩn bị trước lớp
+## Môi trường và dữ liệu thực nghiệm
 
-OS/Python/compiler: {{Phiên bản thực tế}}.
-Virtualenv/dependencies/imports: {{Lệnh và kết quả}}.
-Models/Qdrant/50 answers đã chuẩn bị: {{Bằng chứng và giới hạn/fallback}}.
-Nếu cài full NeMo chưa thành công, ghi lỗi thực tế; không dùng unit test pass
-hoặc pip resolve để khẳng định runtime đã chạy.
+- Hệ điều hành: Windows 10.
+- Python: 3.11.9, môi trường ảo `.venv`.
+- Vector database: Qdrant 1.9.7.
+- Corpus sau xử lý: 102 chunks.
+- Tập đánh giá: 50 câu hỏi; toàn bộ câu trả lời được sinh bằng mô hình `openai/gpt-oss-20b`.
+- RAGAS: sử dụng checkpoint Gemini Flash Lite, tiếp tục bằng các evaluator Groq (GPT-OSS/Qwen) và sentence-transformer local; các lỗi quota/parse được ghi nhận trung thực trong báo cáo.
+- Hai PDF dạng ảnh không có text layer được ghi nhận là giới hạn dữ liệu đầu vào.
 
 ## INDIVIDUAL
 
-Sao chép mẫu cho mỗi thành viên; tiêu đề họ tên không dấu-MSSV.
+### DuongThiNgan-2A202602808
 
-### {{HoVaTen}}-{{MSSV}}
+- **Phần việc được giao và đã thực hiện:** toàn bộ mã nguồn, cấu hình, kiểm thử, thí nghiệm và tài liệu của ba phase.
+- **Minh chứng:** mã nguồn trong `src/`, cấu hình trong `guardrails/`, kết quả trong `artifacts/` và báo cáo trong `doc/reports/`.
+- **Kiểm thử:** unit test và checker của bài lab; các thí nghiệm live được chạy để tạo artifact, không tự điền số liệu giả.
+- **Nội dung đã thực hành:** xây dựng bộ dữ liệu đánh giá RAG, đánh giá bằng RAGAS, pairwise/binary LLM judge, kiểm tra position bias, phát hiện PII/prompt injection và đo latency guardrail.
+- **Giới hạn:** quota/rate limit của evaluator bên ngoài và các PDF scan không có text layer; pipeline có retry, rate limiter và checkpoint để tránh mất tiến độ.
+- **Hỗ trợ AI:** OpenAI Codex được sử dụng để rà soát starter code, hỗ trợ triển khai, gỡ lỗi, chạy kiểm thử/thí nghiệm và hoàn thiện báo cáo. Kết quả được đối chiếu bằng test, checker và artifact thực tế.
 
-- Phần được giao và phần thực tế đã làm: {{Nhiệm vụ, file/hàm, mục đích}}.
-- Bằng chứng: {{Commit/PR và artifacts/reports liên quan}}.
-- Cách kiểm tra: {{Unit mock hoặc live experiment, lệnh và kết quả}}.
-- Điều đã học: {{Khái niệm và cách thể hiện trong bài}}.
-- Giới hạn/cách xử lý: {{Vấn đề và kiểm chứng}}.
-- Nguồn/AI hỗ trợ nếu có: {{Công cụ, phạm vi, cách tự kiểm chứng}}.
+## Cập nhật sau khi nộp liên kết
 
-## Cập nhật sau khi nộp
-
-{{Ghi phiên bản nộp; nếu sửa sau deadline, ghi commit/thời điểm/lý do và thông báo
-coach cho phép áp dụng bản cập nhật. Nếu không có cập nhật, ghi rõ không có.}}
+Liên kết repository đã được nộp lên VLearn lúc **22:47:40 ngày 12/10/2026**. Các commit hoàn thiện tiếp theo được đẩy lên cùng repository và nhánh `main` trước hạn nộp.

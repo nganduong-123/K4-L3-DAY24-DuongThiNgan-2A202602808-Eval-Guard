@@ -109,7 +109,16 @@ def setup_nemo_rails():
         config.yml  — model + rails config
         rails.co    — câu từ chối Colang 1.0; built-in self-check flows được bật trong YAML
     """
+    from langchain_openai import ChatOpenAI
     from nemoguardrails import RailsConfig, LLMRails
+    from nemoguardrails.llm.providers import register_llm_provider
+
+    # NeMo's built-in ``openai`` provider classifies model names by their
+    # prefix and otherwise selects the legacy /completions endpoint. Override
+    # that provider so OpenAI-compatible chat models with other names still
+    # use /chat/completions. Keeping the standard engine name also makes NeMo
+    # pass ``model_name`` through to ChatOpenAI on this supported version.
+    register_llm_provider("openai", ChatOpenAI)
     config = RailsConfig.from_path(GUARDRAILS_CONFIG_DIR)
     rails  = LLMRails(config)
     return rails

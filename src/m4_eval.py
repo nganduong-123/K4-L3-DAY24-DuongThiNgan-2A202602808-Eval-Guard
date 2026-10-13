@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Module 4: RAGAS Evaluation — 4 metrics + failure analysis."""
 
-import os, sys, json, math
+import os, sys, json, math, hashlib, time
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
@@ -10,7 +10,7 @@ if hasattr(sys.stderr, "reconfigure"):
 from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, TEST_SET_PATH
+from config import ARTIFACTS_DIR, OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, TEST_SET_PATH
 
 EVALUATOR_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
@@ -74,7 +74,11 @@ def evaluate_ragas(questions: list[str], answers: list[str],
     def safe_score(value) -> float:
         try:
             score = float(value)
-            return 0.0 if math.isnan(score) else score
+            if math.isnan(score):
+                return 0.0
+            # Some cosine-based RAGAS metrics can exceed 1 by machine epsilon
+            # (for example 1.0000000000000004); keep the public score contract.
+            return max(0.0, min(1.0, score))
         except (TypeError, ValueError):
             return 0.0
 
@@ -136,6 +140,8 @@ def evaluate_ragas(questions: list[str], answers: list[str],
                 "model": model_name,
                 "temperature": 0,
                 "max_tokens": int(os.getenv("RAGAS_MAX_TOKENS", "384")),
+                "timeout": int(os.getenv("RAGAS_REQUEST_TIMEOUT_SECONDS", "90")),
+                "max_retries": 2,
             }
             if OPENAI_BASE_URL:
                 llm_kwargs["base_url"] = OPENAI_BASE_URL
@@ -157,32 +163,106 @@ def evaluate_ragas(questions: list[str], answers: list[str],
             encode_kwargs={"normalize_embeddings": True},
         )
         batch_size = max(1, int(os.getenv("RAGAS_BATCH_SIZE", "10")))
-        frames = []
-        for start in range(0, len(dataset), batch_size):
+        checkpoint_path = os.path.join(ARTIFACTS_DIR, "ragas_checkpoint.json")
+        input_payload = {
+            "questions": questions,
+            "answers": answers,
+            "contexts": contexts,
+            "ground_truths": ground_truths,
+        }
+        input_hash = hashlib.sha256(json.dumps(
+            input_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+        ).encode("utf-8")).hexdigest()
+        score_records = []
+        checkpoint_models = []
+        if os.path.exists(checkpoint_path):
+            with open(checkpoint_path, encoding="utf-8") as file:
+                checkpoint = json.load(file)
+            previous_pool = [
+                model.strip()
+                for model in os.getenv("RAGAS_CHECKPOINT_MODEL_POOL", "").split(",")
+                if model.strip()
+            ]
+            compatible_hashes = {input_hash}
+            # Backward compatibility for checkpoints made before the hash was
+            # separated from the evaluator pool. A previous pool must be
+            # explicitly supplied, so scores can never be attached to a
+            # different dataset by accident.
+            for pool in (model_pool[:len(metrics)], previous_pool):
+                if pool:
+                    legacy_payload = {**input_payload, "models": pool}
+                    compatible_hashes.add(hashlib.sha256(json.dumps(
+                        legacy_payload, ensure_ascii=False, sort_keys=True
+                    ).encode("utf-8")).hexdigest())
+            if checkpoint.get("input_hash") in compatible_hashes:
+                saved_scores = checkpoint.get("scores", [])
+                if isinstance(saved_scores, list) and len(saved_scores) <= len(dataset):
+                    score_records = saved_scores
+                    checkpoint_models = checkpoint.get("models", []) or previous_pool
+
+        batch_attempts = max(1, int(os.getenv("RAGAS_BATCH_ATTEMPTS", "4")))
+        raise_metric_exceptions = os.getenv(
+            "RAGAS_RAISE_EXCEPTIONS", "true"
+        ).strip().lower() not in {"0", "false", "no"}
+        for start in range(len(score_records), len(dataset), batch_size):
             stop = min(start + batch_size, len(dataset))
             batch = dataset.select(range(start, stop))
-            result = evaluate(
-                batch,
-                metrics=metrics,
-                embeddings=embeddings,
-                run_config=run_config,
-                raise_exceptions=True,
-            )
-            frames.append(result.to_pandas())
-        import pandas as pd
-        frame = pd.concat(frames, ignore_index=True)
+            last_error = None
+            for attempt in range(1, batch_attempts + 1):
+                try:
+                    result = evaluate(
+                        batch,
+                        metrics=metrics,
+                        embeddings=embeddings,
+                        run_config=run_config,
+                        raise_exceptions=raise_metric_exceptions,
+                    )
+                    break
+                except Exception as error:
+                    last_error = error
+                    if attempt == batch_attempts:
+                        raise
+                    # A whole batch must succeed before it is checkpointed. This
+                    # avoids silently turning transient API failures into zeros.
+                    time.sleep(min(60, 5 * (2 ** (attempt - 1))))
+            else:  # pragma: no cover - the final attempt raises above
+                raise RuntimeError(f"RAGAS batch failed: {last_error}")
+            frame = result.to_pandas()
+            for _, row in frame.iterrows():
+                score_records.append({
+                    name: safe_score(row.get(name)) for name in metric_names
+                })
+            os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+            temporary_path = checkpoint_path + ".tmp"
+            with open(temporary_path, "w", encoding="utf-8") as file:
+                json.dump(
+                    {
+                        "input_hash": input_hash,
+                        "models": list(dict.fromkeys(
+                            checkpoint_models + model_pool[:len(metrics)]
+                        )),
+                        "scores": score_records,
+                    },
+                    file,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            os.replace(temporary_path, checkpoint_path)
+
         per_question = [
             EvalResult(
-                question=str(row["question"]),
-                answer=str(row["answer"]),
-                contexts=list(row["contexts"]),
-                ground_truth=str(row["ground_truth"]),
-                faithfulness=safe_score(row.get("faithfulness")),
-                answer_relevancy=safe_score(row.get("answer_relevancy")),
-                context_precision=safe_score(row.get("context_precision")),
-                context_recall=safe_score(row.get("context_recall")),
+                question=str(questions[index]),
+                answer=str(answers[index]),
+                contexts=list(contexts[index]),
+                ground_truth=str(ground_truths[index]),
+                faithfulness=safe_score(scores.get("faithfulness")),
+                answer_relevancy=safe_score(scores.get("answer_relevancy")),
+                context_precision=safe_score(scores.get("context_precision")),
+                context_recall=safe_score(scores.get("context_recall")),
             )
-            for _, row in frame.iterrows()
+            for index, scores in enumerate(score_records)
         ]
         aggregates = {
             name: (
@@ -196,7 +276,9 @@ def evaluate_ragas(questions: list[str], answers: list[str],
             "per_question": per_question,
             "metadata": {
                 "evaluator_models": list(dict.fromkeys(
-                    model_pool[:len(metrics)] + [EVALUATOR_EMBEDDING_MODEL]
+                    checkpoint_models
+                    + model_pool[:len(metrics)]
+                    + [EVALUATOR_EMBEDDING_MODEL]
                 ))
             },
         }
